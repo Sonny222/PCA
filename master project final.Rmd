@@ -42,7 +42,7 @@ Case 1. Z*i*’s have a multivariate normal distribution, that is Z*i*$\sim$N(0,
 
 Case 2. Z*i*’s have a multivariate lognormal distribution, that is, Z*i*’s $\sim$LN(0, $\sum$).
 
-Case 3. z*i*’s have a multivariate t distribution with degrees of freedom v = 2, zi ∼ t_2 (0,  $\sum$).
+Case 3. z*i*’s have a multivariate t distribution with degrees of freedom v = 2, z’s $\sim$t_2 (0,  $\sum$).
 
 Case 4.  Z*i*’s have a mixture distribution of five different distributions, N (1, $\sum$), t_2 (1, $\sum$), t_3 (1, $\sum$), U[0 , 2], and LN(0, $\sum$) with equal proportions, where U[0,2] means its components are independent uniform distributions between 0 and 2.
 
