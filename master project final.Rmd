@@ -1,0 +1,311 @@
+---
+header-includes:
+  - \usepackage{amsmath}
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# 1.	Introduction
+Big data has revolutionized the way we gather and analyze information. And it also has become a valuable resource for businesses and researchers alike. However, this abundance of data also presents a challenge in terms of extracting meaningful insights.
+
+One of approaches to dealing with big data is to use machine learning algorithms to find patterns and relationships in the data. However, these algorithms require large amounts of computational resources and can be slow and inefficient when dealing with massive datasets. To overcome this challenge, researchers often choose a subset of the data to work with.
+
+Choosing a good sub-dataset is crucial for accurate model estimation and prediction. A good sub-dataset should be representative of the entire dataset, while also being large enough to capture the important patterns and relationships.See, for example, Fang et al. (2000).This requires careful consideration of the data's distribution and characteristics.
+
+Once a suitable sub-dataset has been selected, machine learning algorithms can be used to build models that can be applied to the entire dataset. These models can then be used to make predictions, identify trends, and gain insights into the underlying processes driving the data.
+
+The linear models are common model for analyzing relationships between variables in large datasets. However, with the increasing size and complexity of big data, traditional linear models may not always be feasible due to computational limitations. As the size and complexity of big data continue to grow, it is important for researchers and analysts to stay up to date with the latest computational techniques and modeling approaches to ensure that they are able to effectively analyze and extract insights from these massive datasets.
+
+# 2.	TSF-u(PCA): Trimmed Space-filling sampling on PCA
+Principal Components Analysis (PCA) is a statistical technique used to reduce the dimensionality of a dataset by identifying the most important patterns of variation among the original features. In the context of subsampling, PCA can be used to select a smaller number of features that capture most of the variability in the data, rather than subsampling over the entire feature space.
+
+The space-filling (SF) method involves dividing a set into s subsets of equal size, where t is the size of each subset, and the subsets are ordered by the values of a given rank, *ri*. To generate a SF design, a starting point is randomly selected from the first subset and then s points are chosen with indices *w + (j -1)t* for *j = 1, 2, ..., s* from each subset. The advantage of this approach is that the resulting sample units are evenly spaced (of length *t*) in the *i*-th rank, *ri*.
+
+The proposed approach, TSF-u(PCA), is a method for selecting a subset of data points by applying a SF scheme on the principal components. The process starts with a set D of all data indices and an empty set S of selected points. As the selection process proceeds, D and S are updated. The sample size for each principal component is denoted by *si*, which is reasonable to decrease with decreasing variation in the PC, but for simplicity, we set it the same for all PC*i*: *si* = S/*k*, where S is the total sample size needed and *k* is the effective PCA dimensions (usually much smaller than the original dimensionality p).
+
+Firstly, starting with *i* = 1 and continuing up to *i = k*, the first *k* principal components are selected, and the resulting set S represents the final selected data.
+
+Secondly, The first principal component (PC*i*) is found, which is a linear combination of the p columns in the data with the largest variation.
+Thirdly, to avoid outliers, a few extreme values of PC*i* are excluded from D, and the updated set is denoted as D'.
+
+Last, trimmed SF procedure is performed on D' to select si data points based on the values of PC*i*. The selected points are added to the set S, and both S and D are updated accordingly. Specifically, the TSF sampling scheme is a modification of the systematic sampling scheme. The data set is first divided evenly into *s* subsets of size *t*, where *t* is the total number of observations divided by *s*, and the subsets are ordered by the values of a specific rank,*ri*. Then, a random starting point is chosen within each subset, and s points are selected from the *s* subsets, with each point having an index of *wj + (j -1)t*, where *wj* is a random index chosen independently from *Unif*(1, 2, ..., *t*). While the resulting sample units may not be equally spaced in the values of the i-th rank, *ri*, the TSF scheme ensures that exactly one unit is chosen within each of the s subsets, and the maximum space between sample units is at most 2 × *t*. This makes the TSF scheme like a stratified random sampling scheme, where the data population is divided into s strata of equal size according to the values of *ri*, and one unit is chosen randomly from each stratum. Compared to a simple random sampling scheme, the SF scheme yields a more evenly spaced sample in the values of the *i*-th rank, *ri*, which can be useful in certain applications where a more representative sample is desired.
+
+# 3.	Simulated Data and Preliminary Exploration
+In this section, I simulated a dataset that proposed method in Wang et al. (2019). I then explore the dataset.
+
+Data are generated from the linear model with the true value of B being a 51-dimensional vector of unity and $\sigma$ ^2=9. An intercept is included so p=50. Let $\sum$ be a covariance matrix with 
+$\sum$(*i,j*)=(0.5)^(I(*i *$\neq$*j*)), for *i, j*=1, ..., 50, where I () is the indicator function. Covariates Z*i*’s are generated according to the following scenarios. 
+
+Case 1. Z*i*’s have a multivariate normal distribution, that is Z*i*$\sim$N(0, $\sum$).
+
+Case 2. Z*i*’s have a multivariate lognormal distribution, that is, Z*i*’s $\sim$LN(0, $\sum$).
+
+Case 3. z*i*’s have a multivariate t distribution with degrees of freedom v = 2, zi ∼ t_2 (0,  $\sum$).
+
+Case 4.  Z*i*’s have a mixture distribution of five different distributions, N (1, $\sum$), t_2 (1, $\sum$), t_3 (1, $\sum$), U[0 , 2], and LN(0, $\sum$) with equal proportions, where U[0,2] means its components are independent uniform distributions between 0 and 2.
+
+Case 5. Z*i*’s consist of multivariate normal random variables with interactions and quadratic terms. To be specific, denote v= (v1, ... ,v20) ^T $\sim$ N (0,$\sum$(20×20)), where $\sum$(20×20)     is the 20 by 20 upper diagonal sub-matrix of $\sum$. Let z = (V^T, v_1 V^T, v_1 v_11, v_2 v_12, ..., v_2 v_20) T and  Z*i*’s are generated from the distribution of z. 
+
+The simulation is repeated 1000 times.
+
+```{r}
+set.seed(123)
+library(MASS)
+library(mvtnorm)
+
+n <- 1000 # number of observations
+p <- 50 # number of covariates
+beta_true <- rep(1, p+1) # true regression coefficients
+sigma_squared <- 9.0 # true error variance
+
+S <- matrix(0, nrow=p, ncol=p)
+for (i in 1:p) {
+  for (j in 1:p) {
+    if (i != j) {
+      S[i, j] <- 0.5
+    } else {
+      S[i, j] <- 1.0
+    }
+  }
+}
+
+Z1 <- MASS::mvrnorm(n, mu=rep(0, p), Sigma=S)
+Z10 <- cbind(rep(1,n), Z1)
+# Generate the error vector
+epsilon1 <- rnorm(n, mean=0, sd=sqrt(sigma_squared))
+# Generate the response variable
+y1 <- Z10 %*% beta_true + epsilon1
+
+set.seed(124)
+Z2 <- exp(rmvnorm(n, mean = rep(0, p), sigma = S))
+Z20 <- cbind(rep(1, n), Z2)
+# Generate the error vector
+epsilon2 <- rnorm(n, mean=0, sd=sqrt(sigma_squared))
+# Generate the response variable
+y2 <- Z20 %*% beta_true + epsilon2
+
+set.seed(125)
+Z3 <- rmvt(n, sigma = S, df = 2, delta = rep(0, p))
+Z30 <- cbind(rep(1, n), Z3)
+# Generate the error vector
+epsilon3 <- rnorm(n, mean=0, sd=sqrt(sigma_squared))
+# Generate the response variable
+y3 <- Z30 %*% beta_true + epsilon3
+
+set.seed(126)
+new_arr <- rep(1, p)
+Z41 <- mvrnorm(n = 200, mu = new_arr, Sigma = S)
+Z42 <- rmvt(n=200, df = 2, delta = new_arr, sigma = S)
+Z43 <- rmvt(n = 200, df = 3, delta = new_arr, sigma = S)
+Z44 <- matrix(runif(200 * p, 0, 2), nrow = 200, ncol = p)
+Z45 <- exp(mvrnorm(n = 200, mu = rep(0, p), Sigma = S))
+Z4 <- rbind(Z41, Z42, Z43, Z44, Z45)
+Z4 <- Z4[sample(nrow(Z4)), ]
+Z40 <- cbind(rep(1, n), Z4)
+epsilon4 <- rnorm(n, mean = 0, sd = sqrt(sigma_squared))
+y4 <- Z40 %*% beta_true + epsilon4
+
+
+set.seed(127)
+
+cov_matrix_20 <- S [1:20, 1:20]
+Z5 <- matrix(0, nrow = 0, ncol = 20)
+
+for (i in 1:1000) {
+  v <- mvrnorm(n = 20, mu = rep(0, 20), Sigma = cov_matrix_20)
+  z51 <- v
+  z52 <- v[, 1]* v
+  z53 <- outer(v[, 1], v[, 10])
+  z54 <- outer(v[, 2], v[, 11])
+  for (j in 3:9) {
+    a <- outer(v[, 2], v[, 10 + j])
+    z54 <- rbind(z54, a)
+  }
+  Z55 <- rbind(z51, z52, z53, z54)
+  Z5 <- rbind(Z5, Z55)
+}
+zeros <- matrix(0, nrow=220000, ncol=30)
+Z500 <- cbind(Z5, zeros)
+Z50 <- cbind(rep(1, 220000), Z500)
+epsilon5 <- rnorm(n=220000, mean=0, sd=sqrt(sigma_squared))
+y5 <-  Z50 %*% beta_true + epsilon5
+
+
+
+dd <- rbind(Z1, Z2, Z3, Z4, Z500)
+y<-rbind(y1,y2,y3,y4,y5)
+dd<-cbind(y,dd)
+d <- dd[sample(nrow(dd),size=10000,replace=FALSE), ]
+
+```
+The full simulated data population of size respectively 224000
+data points that consist of the response variable (Y) and 50 covariates
+(Z*i*, *i* = 1, 2, ..., 50).it is often practical to work with a smaller size of a large dataset, rather than using the entire dataset.so, I selected a random sample of size 10,000 from a population of 224000 data points to create a sub-population consisting of the response variable (Y) and 50 covariates (Z*i*, where *i* ranges from 1 to 50). This sub-population is designed to effectively represent the larger dataset, and can be used for analysis and modeling purposes.
+
+Secondly, I begin to explore the simulated data. 
+```{r}
+pairs(d[,c(1,3,4,5,7,11,16,20)])
+
+```
+Figure 1: Pairwise plots of Y and some Z’s.The response variable is var1, while the predictor variables are var2, var3, var4, var5, var6, var7, and var8, which correspond to z3, z4, z5, z7, z11, z16, and z20, respectively. 
+
+From Figure 1, we can find it is reasonable to consider a much simple linear model between Y with just one of the Zi.
+
+
+# 4.	Evaluation 
+
+
+To perform the TSF-u(PCA) sampling scheme, the data is first subject to PCA, reducing its dimension from 50 to 21. 
+
+```{r}
+library(factoextra)  # for PCA function
+library(ggplot2)  # for plotting
+# Fit the PCA model with all components
+pca <- prcomp(d[,-1], scale= FALSE)
+summary(pca$sdev)
+# Get the cumulative explained variance ratio
+cumulative_var_ratio <- cumsum((pca$sdev^2) / sum(pca$sdev^2))
+cumulative_var_ratio
+# Plot the cumulative explained variance ratio
+ggplot(data.frame(cumulative_var_ratio), aes(x = seq_along(cumulative_var_ratio), y = cumulative_var_ratio)) +
+  geom_line() +
+  xlab("Number of components") +
+  ylab("Cumulative explained variance ratio")
+
+```
+Figure 2:  its effective dimension is 21 after performing PCA on the data.
+```{r}
+# Find the number of components that explain 95% of the variance
+n_components <- which(cumulative_var_ratio >= 0.95)[1]
+print(paste("Number of components:", n_components))
+```
+
+I choose a training sample 420. To implement the sampling scheme.
+```{r}
+pca_data <- function(X, k, s) {
+  # Step 1: Initialize sets D and S
+  D <- 1:nrow(X)  # set of all data indices
+  E <- numeric()  # set of selected data indices
+  
+  # Step 2: Compute the first k principal components of the data
+  pca <- prcomp(X, rank. = k)
+  pcs <- predict(pca, X)
+  s_i <- floor(s / k)
+  final_X <- matrix(0, nrow = s, ncol = ncol(X))
+  for (i in 1:k) {
+    # Compute the scores of each data point on this PC
+    pc_scores <- pcs[, i]
+    
+    # Update D by excluding data points with extreme values of pc_scores
+    mu <- mean(pc_scores[D])
+    sigma <- sd(pc_scores[D])
+    D <- D[abs(pc_scores[D] - mu) <= 3 * sigma]
+    
+    # Perform SF sampling on D to select s_i points based on pc_scores values
+    sorted_indices <- order(pc_scores[D])
+    t <- floor(length(sorted_indices) / s_i)
+    w <- sample(1:t, size = s_i, replace = TRUE)
+    indices_i <- sorted_indices[w + seq(0, s_i - 1) * t]
+    
+    # Add the indices of these selected points to S
+    E <- c(E, D[indices_i])
+    
+    # Remove selected points from D
+    D <- setdiff(D, D[indices_i])
+    # Update final_X
+    final_X[((i - 1) * s_i + 1):(i * s_i),] <- X[indices_i,]
+  }
+  
+  return(final_X)
+}
+
+selected_data<-pca_data(d[,-1], 21, 420)
+
+```
+
+
+The selected data points are then scattered across the chosen dimensions, with pairs of Zi dimensions shown in Figures 2 and Figures 3. The sampled points from TSF-u(PCA) are depicted in red circles, while the original data points are shown in blue circle. This allows for easy comparison of the selected and original data points in the scatter plots.
+
+```{r}
+par(mfrow = c(2, 2))
+plot(d[,2], d[,3], col='blue', xlab='Z1', ylab='Z2', main='Scatter Plot')
+points(selected_data[,2], selected_data[,3], col='red')
+legend('bottomright', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+plot(d[,2], d[,9], col='blue', xlab='Z1', ylab='Z8', main='Scatter Plot')
+points(selected_data[,2], selected_data[,9], col='red')
+legend('bottomright', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+plot(d[,2], d[,16], col='blue', xlab='Z1', ylab='Z15', main='Scatter Plot')
+points(selected_data[,2], selected_data[,16], col='red')
+legend('bottomright', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+plot(d[,2], d[,21], col='blue', xlab='Z1', ylab='Z20', main='Scatter Plot')
+points(selected_data[,1], selected_data[,20], col='red')
+legend('bottomright', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+
+```
+
+Figure 3: Scatter plot of Z1vs Z2, Z8, Z15, Z20, original data (blue circles), sub-data selected by TSF-u(PCA) (marked as red circles).
+
+```{r}
+par(mfrow = c(2, 2))
+plot(d[,3], d[,4], col='blue', xlab='Z2', ylab='Z3', main='Scatter Plot')
+points(selected_data[,3], selected_data[,4], col='red')
+legend('topleft', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+plot(d[,3], d[,8], col='blue', xlab='Z2', ylab='Z7', main='Scatter Plot')
+points(selected_data[,3], selected_data[,8], col='red')
+legend('topleft', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+plot(d[,3], d[,12], col='blue', xlab='Z2', ylab='Z11', main='Scatter Plot')
+points(selected_data[,3], selected_data[,12], col='red')
+legend('topleft', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+plot(d[,3], d[,41], col='blue', xlab='Z2', ylab='Z40', main='Scatter Plot')
+points(selected_data[,3], selected_data[,41], col='red')
+legend('topleft', c('Original Data', 'Selected Data'), col=c('blue', 'red'), pch=1,cex=0.5)
+xlim(-20, 20)
+ylim(-20, 20)
+
+```
+Figure 4: Scatter plot of Z2vs Z3, Z7, Z11, Z40, original data (blue circles), sub-data selected by TSF-u(PCA) (marked as red circles).
+
+Next, we compare the variance-covariance matrices between original data and selected data. TSF-u(PCA) subsample clearly has a similar structure with that of the original data in terms of the corresponding variance-covariance matrices.
+```{r}
+covariance_matrix <- cov(d[,-1])
+covariance_matrix[2:8,2:8]
+covariance_matrix <- cov(selected_data)
+covariance_matrix[2:8,2:8]
+```
+
+Table 1: Variance-covariance matrix for original data and TSF-u(PCA) subsample.
+
+# 5.	Summary
+
+TSF-u (PCA) is a method for selecting a "good" training sample for building a prediction model. This method uses principal component analysis (PCA) to identify the most important features in the data and then selects a subset of the data that maximizes the variance explained by these features. By selecting a training sample that is representative of the underlying data, the resulting prediction model is more likely to generalize well to new, unseen data.
+
+In addition to selecting a good training sample, it's also important to evaluate the performance of the prediction model on both the training sample and a separate test sample. This helps to ensure that the model is not over-fitting to the training data and can generalize well to new data.
+
+To achieve good performance on both the training and test samples, it's important to use appropriate methods for model selection and evaluation. This may include techniques like cross-validation or holdout validation to assess the performance of the model on new data. It's also important to choose an appropriate performance metric that is relevant to the specific problem and data at hand, such as accuracy, precision, recall, or F1 score.
+
+In summary, TSF-u (PCA) is one method that can be used to select a representative training sample, while appropriate methods for model selection and evaluation can help to ensure good performance on both the training and test data.
+
+# 6.	Reference
+
+Wang, H., M. Yang, and J. Stufken (2019). Information-based optimal subdata selection for big
+data linear regression. Journal of the American Statistical Association 114(525), 393–405.
+
+Fang, K. T., D. K. J. Lin, P. Winker, and Y. Zhang (2000). Uniform design: theory and applications. Technometrics 42, 237–24
+
+
